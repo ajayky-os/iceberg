@@ -18,25 +18,44 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.cloud.gcs.analyticscore.client.GcsFileInfo;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
+import com.google.cloud.gcs.analyticscore.client.GcsItemId;
+import com.google.cloud.gcs.analyticscore.client.GcsItemInfo;
+import com.google.cloud.gcs.analyticscore.core.GoogleCloudStorageInputStream;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import java.io.IOException;
+import java.net.URI;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class GCSInputFile extends BaseGCSFile implements InputFile {
+  private static final Logger LOG = LoggerFactory.getLogger(GCSInputFile.class);
   private Long blobSize;
 
   static GCSInputFile fromLocation(
-      String location, PrefixedStorage storage, MetricsContext metrics) {
-    return fromLocation(location, 0L, storage, metrics);
+      String location,
+      PrefixedStorage storage,
+      PrefixedGcsFileSystem prefixedGcsFileSystem,
+      MetricsContext metrics) {
+    return fromLocation(location, 0L, storage, prefixedGcsFileSystem, metrics);
   }
 
   static GCSInputFile fromLocation(
-      String location, long length, PrefixedStorage storage, MetricsContext metrics) {
+      String location,
+      long length,
+      PrefixedStorage storage,
+      PrefixedGcsFileSystem prefixedGcsFileSystem,
+      MetricsContext metrics) {
     return new GCSInputFile(
         storage.storage(),
+        prefixedGcsFileSystem.getGcsFileSystem(),
         BlobId.fromGsUtilUri(location),
         length > 0 ? length : null,
         storage.gcpProperties(),
@@ -45,11 +64,12 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
 
   GCSInputFile(
       Storage storage,
+      GcsFileSystem gcsFileSystem,
       BlobId blobId,
       Long blobSize,
       GCPProperties gcpProperties,
       MetricsContext metrics) {
-    super(storage, blobId, gcpProperties, metrics);
+    super(storage, gcsFileSystem, blobId, gcpProperties, metrics);
     this.blobSize = blobSize;
   }
 
@@ -64,6 +84,33 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
+    if (gcpProperties().isGcsAnalyticsCoreEnabled()) {
+      try {
+        GcsFileInfo fileInfo = getGcsFileInfo();
+        return new GoogleCloudStorageInputStreamWrapper(
+            GoogleCloudStorageInputStream.create(gcsFileSystem(), fileInfo));
+      } catch (IOException e) {
+        LOG.warn(
+            "Failed to create GCS input stream with gcs-connector, falling back to the default input stream.",
+            e);
+      }
+    }
+
     return new GCSInputStream(storage(), blobId(), blobSize, gcpProperties(), metrics());
+  }
+
+  GcsFileInfo getGcsFileInfo() {
+    BlobId blobId = blobId();
+    GcsItemId itemId =
+        GcsItemId.builder()
+            .setBucketName(blobId.getBucket())
+            .setObjectName(blobId.getName())
+            .build();
+    GcsItemInfo itemInfo = GcsItemInfo.builder().setItemId(itemId).setSize(getLength()).build();
+    return GcsFileInfo.builder()
+        .setItemInfo(itemInfo)
+        .setUri(URI.create(blobId().toGsUtilUri()))
+        .setAttributes(ImmutableMap.of())
+        .build();
   }
 }
