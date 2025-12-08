@@ -158,7 +158,7 @@ public class TestGcsInputFile {
               metricsContext);
 
       try (SeekableInputStream stream = inputFile.newStream()) {
-        assertThat(stream).isInstanceOf(GoogleCloudStorageInputStreamWrapper.class);
+        assertThat(stream).isInstanceOf(GcsInputStreamWrapper.class);
       }
     }
   }
@@ -189,7 +189,7 @@ public class TestGcsInputFile {
               metricsContext);
 
       try (SeekableInputStream stream = inputFile.newStream()) {
-        assertThat(stream).isInstanceOf(GoogleCloudStorageInputStreamWrapper.class);
+        assertThat(stream).isInstanceOf(GcsInputStreamWrapper.class);
       }
     }
   }
@@ -224,7 +224,7 @@ public class TestGcsInputFile {
   }
 
   @Test
-  public void newStream_analyticsCoreInitializationFailed() throws IOException {
+  public void newStreamAnalyticsCoreInitializationFailed() throws IOException {
     GCPProperties enabledGcpProperties =
         new GCPProperties(ImmutableMap.of("gcs.analytics-core.enabled", "true"));
     BlobId blobId = BlobId.fromGsUtilUri(LOCATION);
@@ -262,6 +262,7 @@ public class TestGcsInputFile {
         SeekableInputStream stream = inputFile.newStream();
         assertThat(stream).isInstanceOf(GCSInputStream.class);
         assertThat(inputStreamMocked.constructed()).hasSize(1);
+        mocked.verify(() -> GoogleCloudStorageInputStream.create(gcsFileSystem, itemId));
         stream.close();
       }
     }
