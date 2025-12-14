@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.client.util.Lists;
 import com.google.api.client.util.Maps;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -66,6 +67,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final String ROOT_STORAGE_PREFIX = "gs";
 
   private SerializableSupplier<Storage> storageSupplier;
+  private SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
@@ -85,8 +87,9 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
    *
    * @param storageSupplier storage supplier
    */
-  public GCSFileIO(SerializableSupplier<Storage> storageSupplier) {
+  public GCSFileIO(SerializableSupplier<Storage> storageSupplier, SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier) {
     this.storageSupplier = storageSupplier;
+    this.gcsFileSystemSupplier = gcsFileSystemSupplier;
     this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
 
@@ -179,7 +182,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
           localStorageByPrefix.put(
               ROOT_STORAGE_PREFIX,
-              new PrefixedStorage(ROOT_STORAGE_PREFIX, properties, storageSupplier));
+              new PrefixedStorage(ROOT_STORAGE_PREFIX, properties, storageSupplier, gcsFileSystemSupplier));
           storageCredentials.stream()
               .filter(c -> c.prefix().startsWith(ROOT_STORAGE_PREFIX))
               .collect(Collectors.toList())
@@ -196,7 +199,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
                         new PrefixedStorage(
                             storageCredential.prefix(),
                             propertiesWithCredentials,
-                            storageSupplier));
+                            storageSupplier,
+                            gcsFileSystemSupplier));
                   });
           this.storageByPrefix = localStorageByPrefix;
         }

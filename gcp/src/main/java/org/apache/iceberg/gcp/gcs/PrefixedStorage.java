@@ -46,11 +46,12 @@ class PrefixedStorage implements AutoCloseable {
   private SerializableSupplier<Storage> storage;
   private CloseableGroup closeableGroup;
   private transient volatile Storage storageClient;
-  private final SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier;
+  private SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier;
   private transient volatile GcsFileSystem gcsFileSystem;
 
   PrefixedStorage(
-      String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage) {
+      String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage,
+      SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
@@ -58,6 +59,7 @@ class PrefixedStorage implements AutoCloseable {
     this.storage = storage;
     this.gcpProperties = new GCPProperties(properties);
     this.closeableGroup = new CloseableGroup();
+    this.gcsFileSystemSupplier = gcsFileSystemSupplier;
     if (null == storage) {
       this.storage =
           () -> {
@@ -79,8 +81,9 @@ class PrefixedStorage implements AutoCloseable {
             return builder.build().getService();
           };
     }
-
-    this.gcsFileSystemSupplier = gcsFileSystemSupplier(properties);
+    if (null == gcsFileSystem) {
+        this.gcsFileSystemSupplier = gcsFileSystemSupplier(properties);
+    }
   }
 
   public String storagePrefix() {

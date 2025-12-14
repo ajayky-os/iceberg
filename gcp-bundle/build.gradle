@@ -57,6 +57,8 @@ project(":iceberg-gcp-bundle") {
     relocate 'com.google.gson', 'org.apache.iceberg.gcp.shaded.com.google.gson'
     relocate 'org.apache.http', 'org.apache.iceberg.gcp.shaded.org.apache.http'
     relocate 'io.netty', 'org.apache.iceberg.gcp.shaded.io.netty'
+
+    mergeServiceFiles()
   }
 
   jar {
