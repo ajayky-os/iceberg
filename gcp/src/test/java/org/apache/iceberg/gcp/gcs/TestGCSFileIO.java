@@ -89,7 +89,7 @@ public class TestGCSFileIO {
         .when(storage)
         .delete(any(Iterable.class));
 
-    io = new GCSFileIO(() -> storage);
+    io = new GCSFileIO(() -> storage, null);
   }
 
   @Test

@@ -112,7 +112,7 @@ public class TestGcsFileIO {
 
   @BeforeEach
   public void before() {
-    fileIO = new GCSFileIO(() -> storage);
+    fileIO = new GCSFileIO(() -> storage, null);
     fileIO.initialize(ImmutableMap.of());
     for (Blob blob : storage.list(BUCKET).iterateAll()) {
       storage.delete(blob.getBlobId());

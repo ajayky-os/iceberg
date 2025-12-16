@@ -50,7 +50,9 @@ class PrefixedStorage implements AutoCloseable {
   private transient volatile GcsFileSystem gcsFileSystem;
 
   PrefixedStorage(
-      String storagePrefix, Map<String, String> properties, SerializableSupplier<Storage> storage,
+      String storagePrefix,
+      Map<String, String> properties,
+      SerializableSupplier<Storage> storage,
       SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(storagePrefix), "Invalid storage prefix: null or empty");
@@ -82,7 +84,7 @@ class PrefixedStorage implements AutoCloseable {
           };
     }
     if (null == gcsFileSystem) {
-        this.gcsFileSystemSupplier = gcsFileSystemSupplier(properties);
+      this.gcsFileSystemSupplier = gcsFileSystemSupplier(properties);
     }
   }
 
@@ -151,17 +153,18 @@ class PrefixedStorage implements AutoCloseable {
 
   private SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier(
       Map<String, String> properties) {
-    ImmutableMap.Builder<String, String> propertiesWithUserAgent =
-        new ImmutableMap.Builder<String, String>()
-            .putAll(properties)
-            .put("gcs.user-agent", GCS_FILE_IO_USER_AGENT);
-    GcsAnalyticsCoreOptions gcsAnalyticsCoreOptions =
-        new GcsAnalyticsCoreOptions("gcs.", propertiesWithUserAgent.build());
-    GcsFileSystemOptions fileSystemOptions = gcsAnalyticsCoreOptions.getGcsFileSystemOptions();
-    Credentials credentials = credentials(new GCPProperties(properties));
-    return () ->
-        credentials == null
-            ? new GcsFileSystemImpl(fileSystemOptions)
-            : new GcsFileSystemImpl(credentials, fileSystemOptions);
+    return () -> {
+      ImmutableMap.Builder<String, String> propertiesWithUserAgent =
+          new ImmutableMap.Builder<String, String>()
+              .putAll(properties)
+              .put("gcs.user-agent", GCS_FILE_IO_USER_AGENT);
+      GcsAnalyticsCoreOptions gcsAnalyticsCoreOptions =
+          new GcsAnalyticsCoreOptions("gcs.", propertiesWithUserAgent.build());
+      GcsFileSystemOptions fileSystemOptions = gcsAnalyticsCoreOptions.getGcsFileSystemOptions();
+      Credentials credentials = credentials(new GCPProperties(properties));
+      return credentials == null
+          ? new GcsFileSystemImpl(fileSystemOptions)
+          : new GcsFileSystemImpl(credentials, fileSystemOptions);
+    };
   }
 }
