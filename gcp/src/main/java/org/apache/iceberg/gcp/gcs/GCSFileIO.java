@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.client.util.Lists;
 import com.google.api.client.util.Maps;
+import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -66,6 +67,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private static final String ROOT_STORAGE_PREFIX = "gs";
 
   private SerializableSupplier<Storage> storageSupplier;
+  private SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
@@ -85,8 +87,11 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
    *
    * @param storageSupplier storage supplier
    */
-  public GCSFileIO(SerializableSupplier<Storage> storageSupplier) {
+  public GCSFileIO(
+      SerializableSupplier<Storage> storageSupplier,
+      SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier) {
     this.storageSupplier = storageSupplier;
+    this.gcsFileSystemSupplier = gcsFileSystemSupplier;
     this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
 
@@ -179,7 +184,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
           localStorageByPrefix.put(
               ROOT_STORAGE_PREFIX,
-              new PrefixedStorage(ROOT_STORAGE_PREFIX, properties, storageSupplier));
+              new PrefixedStorage(
+                  ROOT_STORAGE_PREFIX, properties, storageSupplier, gcsFileSystemSupplier));
           storageCredentials.stream()
               .filter(c -> c.prefix().startsWith(ROOT_STORAGE_PREFIX))
               .collect(Collectors.toList())
@@ -196,7 +202,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
                         new PrefixedStorage(
                             storageCredential.prefix(),
                             propertiesWithCredentials,
-                            storageSupplier));
+                            storageSupplier,
+                            gcsFileSystemSupplier));
                   });
           this.storageByPrefix = localStorageByPrefix;
         }
@@ -278,5 +285,34 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    GCSFileIO that = (GCSFileIO) o;
+
+    // 1. Check Configuration (The most common case)
+    if (!java.util.Objects.equals(properties, that.properties)) {
+      return false;
+    }
+
+    // 2. Check Explicit Credentials (The Security Guard)
+    // If you are using 'setCredentials', we MUST compare the objects.
+    // Since GoogleCredentials uses reference equality, this disables Plan Reuse
+    // for manually injected credentials unless it is the exact same Java object instance.
+    // This is the correct "Safe Fallback" behavior.
+    return java.util.Objects.equals(this.storageCredentials, that.storageCredentials);
+  }
+
+  @Override
+  public int hashCode() {
+    // Hash both fields to maintain contract
+    return java.util.Objects.hash(properties, storageCredentials);
   }
 }
